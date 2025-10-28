@@ -1,5 +1,6 @@
 package namenode
 
+// strcut to store metadata for every chunk
 type ChunkData struct {
 	chunkID string // each chunk will have a unique ID
 	Filename string

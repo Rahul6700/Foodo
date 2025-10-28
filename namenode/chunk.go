@@ -2,6 +2,7 @@ package namenode
 
 import (
 	"log"
+	"crypto/sha1"
 )
 
 // 2mb chunkSize

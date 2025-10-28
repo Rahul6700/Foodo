@@ -16,6 +16,16 @@ func namenode(){
 	r.POST("/upload", func(c* gin.Context){
 		file, _ := c.FormFile("file")
 		log.Println("Namenode recieved file:", file.Filename)
+		chunksDataSlice, err := chunkFile(file,file.Filename)
+		if err != nil {
+			log.Println("Chunking failed: ", err)
+		}
+		// printing all the contents of the chunksDataSlice array
+		for _, chunk := range chunksDataSlice {
+			log.Println("chunkID:%d, index:%d, size:%d ", c.chunkID, c.Index, c.Size)
+		}
+
+		// todo: Implement logic to send the chunks to datanodes
 
 	})
 }
