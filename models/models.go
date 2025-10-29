@@ -1,6 +1,6 @@
 package models
 
-// NameNode Structs
+// NameNode Structs -------------
 
 // strcut to store metadata for every chunk
 type ChunkMetaData struct {
@@ -16,4 +16,13 @@ type fileChunk struct {
 	chunkData []byte // the actual bin chunk
 }
 
+// DataNode Structs -------------
 
+// this struct is the value for the key value pair that is stored in datanodes
+type CompleteChunkData struct {
+	chunkID string
+	Filename string
+	Index int
+	Size int
+	Data []byte // the actual content
+}
