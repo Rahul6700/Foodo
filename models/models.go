@@ -1,4 +1,6 @@
-package namenode
+package models
+
+// NameNode Structs
 
 // strcut to store metadata for every chunk
 type ChunkMetaData struct {
@@ -13,6 +15,5 @@ type fileChunk struct {
 	MetaData ChunkMetaData // the metadata of the chunk
 	chunkData []byte // the actual bin chunk
 }
-
 
 
