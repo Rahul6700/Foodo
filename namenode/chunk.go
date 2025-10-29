@@ -16,17 +16,20 @@ func sha1sum(inp []byte) string {
     return hex.EncodeToString(h.Sum(nil)) // EncodeToString() converts the SHA1 output to a hexadecimal string
 }
 
-func chunkFile(file io.Reader, filename string) ([]ChunkInfo, error) {
-    var chunks []ChunkInfo // this array is what we will be returning, this is an array of metdata (chunkData) of all the chunks of the file
-    buffer := make([]byte, ChunkSize)
+func chunkFile(file io.Reader, filename string) ([]ChunkMetaData, [][]byte, error) {
+    var chunksDataSlice []ChunkMetaData // this array is what we will be returning, this is an array of metdata (chunkData) of all the chunks of the file
+    var fileChunksSlice [][]byte // this slices contains the bin slices -> each chunk's binary is a []byte, so we return a slice of those ([][]byte)
+    buffer := make([]byte, ChunkSize) // we make a buffer of size ChunkSize (2mb)
     index := 0
     for {
-        n, err := file.Read(buffer)
+        n, err := file.Read(buffer) // n is the number of bytes read into the buffer in this iteration
         if n > 0 {
-            //we want to give each chunk a unique ID, so we compute a unique hash for every chunk using SHA1
-            chunkID := hashHelper(buffer[:n]) // get the unique hash ID
+            chunkData := make([]byte, n) // creates a new slice of size 'n'
+            copy(chunkData, buffer[:n]) // copy n bytes from the buffer into the slice -> this slice is now our chunk bin
+            chunkID := hashHelper(chunkData) // get the unique hash Id
             // append the chunks metadata to the chunks array
-            chunks = append(chunks, ChunkInfo{chunkID:chunkID, FileName:filename, Index:index, Size:int64(n)})
+            chunksDataSlice = append(chunksMetaData, ChunkInfo{chunkID:chunkID, FileName:filename, Index:index, Size:int64(n)}) // writing to metadata slice
+            fileChunksSlice = append(fileChunksSlice, chunkData) // writing to chunk bin slice
             index++
         }
         if err == io.EOF {
@@ -36,5 +39,5 @@ func chunkFile(file io.Reader, filename string) ([]ChunkInfo, error) {
             return nil, err
         }
     }
-    return chunks, nil
+    return chunksDataSlice, fileChunksSlice, nil
 }
