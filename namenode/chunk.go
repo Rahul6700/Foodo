@@ -22,7 +22,7 @@ func chunkFile(file io.Reader, filename string) ([]ChunkMetaData, [][]byte, erro
     buffer := make([]byte, ChunkSize) // we make a buffer of size ChunkSize (2mb)
     index := 0
     for {
-        n, err := file.Read(buffer) // n is the number of bytes read into the buffer in this iteration
+        n, err := file.Read(buffer)
         if n > 0 {
             chunkData := make([]byte, n) // creates a new slice of size 'n'
             copy(chunkData, buffer[:n]) // copy n bytes from the buffer into the slice -> this slice is now our chunk bin
@@ -36,7 +36,7 @@ func chunkFile(file io.Reader, filename string) ([]ChunkMetaData, [][]byte, erro
             break
         }
         if err != nil {
-            return nil, err
+            return nil, nil, err
         }
     }
     return chunksDataSlice, fileChunksSlice, nil
