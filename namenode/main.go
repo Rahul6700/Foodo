@@ -5,8 +5,11 @@ import (
 	"log"
 )
 
-var mp map[string][]string // a map to store (str,vector<str>)
-// will store the file and the datanodes its mapped to
+var fileToChunkMap map[string][]string // a map to store (str,vector<str>) -> file1 : chunk102, chunk56, chunk 32
+// will store the file and the chunks its mapped to
+
+var chunkIDToDatanode map[string][]string // a map which stores all the datanodes which has a partoular chunk
+// eg -> chunk1 -> datanode2, datanode4, datanode5
 
 func namenode(){
 
@@ -22,10 +25,10 @@ func namenode(){
 		}
 		// printing all the contents of the chunksDataSlice array
 		for _, chunk := range chunksDataSlice {
-			log.Println("chunkID:%d, index:%d, size:%d ", c.chunkID, c.Index, c.Size)
+			log.Printf("chunkID:%d, index:%d, size:%d ", c.chunkID, c.Index, c.Size)
 		}
 
 		// todo: Implement logic to send the chunks to datanodes
 
 	})
-}
+

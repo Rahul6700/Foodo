@@ -20,7 +20,7 @@ func main(){
 	r.POST("/store", func(c* gin.Context){
 		var tempStruct models.fileChunk
 		err := c.BindJSON(&tempStruct)
-		log.Println("datanode recieved: %s -> %s", tempStruct.MetaData.chunkID, tempStruct.chunkData)
+		log.Printf("datanode recieved: %s -> %s", tempStruct.MetaData.chunkID, tempStruct.chunkData)
 		key := tempStruct.chunkID // key is a string -> chunkID
 		var value models.CompleteChunkData // value is a CompleteChunkData which is basically MetaData with the bin content
 		value.chunkID = tempStruct.chunkID
@@ -30,4 +30,6 @@ func main(){
 		value.Data = tempStruct.Data
 		store(key,value) // calls the store function in map.go -> stores to the hashmap
 	})
+
+	r.POST()
 }

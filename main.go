@@ -11,7 +11,7 @@ func main(){
 		s = append(s,i);
 	}
 
-	for _,num := range s {
-		fmt.Print(num)
+	for index ,num := range s {
+		fmt.Printf("index %d has %d\n", index,num)
 	}
 }

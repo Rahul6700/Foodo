@@ -41,3 +41,4 @@ func chunkFile(file io.Reader, filename string) ([]ChunkMetaData, [][]byte, erro
     }
     return chunksDataSlice, fileChunksSlice, nil
 }
+
