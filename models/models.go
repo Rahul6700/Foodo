@@ -26,3 +26,12 @@ type CompleteChunkData struct {
 	Size int
 	Data []byte // the actual content
 }
+
+// the struct for the FSM 
+type FSM struct {
+	lock sync.Mutex // we lock the maps
+	fileToChunksMap map[string][]string 
+	chunkIDToDataNodesMap map[string][]string
+}
+
+
