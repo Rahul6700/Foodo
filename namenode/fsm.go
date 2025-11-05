@@ -9,6 +9,12 @@ import (
 	"log"
 )
 
+// temp struct used only for this file -> restore and snapshot func
+type fms_snapshot struct {
+		Files  map[string][]string
+		Chunks map[string][]string
+	}
+
 // we return a pointer to the FSM, so that whereever its modified from, we always acess the same FMS
 // if we pass the FSM directly, copies might get created
 // this function creates a new FSM, so everytime our pgm runs a new FSM is created
@@ -46,4 +52,50 @@ func (the_fsm *FSM) Apply (log *raft.log) interface{} {
 	return nil // returning true if the function runs successfully
 }
 
+// the snapshot function takes a snapshot of both the slices and sends it to the FSM
+// this function return 2 things, a value and an error
+func (the_fsm *FSM) Snapshot (raft.FSMSnapshot, error) interface{} {
+	the_fsm.lock.Lock()
+	defer the_fsm.lock.Unlock() // lock the fsm in the start of the function and unlock after the operation is complete, so only one process can acces
+	// it and hence avoiding race conditions
 
+	// we create a snapshot of that struct we just created,
+	// so we basically put both the maps (file to chunks and chunksID to DN) in the struct and send a snapshot of it to the FSM
+	snapshot := fms_snapshot {
+		Files : the_fsm.fileToChunksMap,
+		Chunks : the_fsm.chunkIDToDataNodesMap
+	}
+	// obv, we cant send a go struct, so we convert the snapshot to a binary slice
+	data, err := json.Marshal(snapshot)
+	if err != nil {
+		return nil, err // returning a value and an error
+	}
+	// on success
+	return &fsmSnapshot{data: data}, nil
+}
+
+// this pulls the stored snapshots from the FSM
+// it returns a file, io.ReadCloser technically which is a in built method in "io"
+// in traditional io.Read() we can just read, in io.ReadCloser we need to close the fd (it's to save resources)
+// if we do io.ReadCloser we need to do defer rc.Close()
+func (the_fsm *FSM) restore (rc io.ReadCloser) error {
+	defer rc.Close()
+	// a new obj of the fsm_snapshot struct to store the incoming data
+	var data fsm_snapshot;
+
+	// creates a NewDecoder obj that reads the message from rc and Decodes it and stores it in the data var
+	err := json.NewDecoder(rc).Decode(&data)
+	if err != nil {
+		return nil
+	}
+
+	// now we need to write this data to the FSM
+	// we lock the FSM first so only this process is accessing it at a time
+	the_fsm.lock.Lock()
+	defer the_fsm.lock.Unlock()
+
+	the_fsm.fileToChunksMap = data.Files
+	the_fsm.chunkIDToDataNodesMap = data.Chunks
+
+	return nil
+}
