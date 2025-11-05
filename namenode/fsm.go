@@ -36,6 +36,14 @@ func (the_fsm *FSM) Apply (log *raft.log) interface{} {
 	else {
 		var chunkIDSlice []string
 		for _, chunk := range cmd.Chunks {
+			chunkIDSlice = append(chunkIDSlice, chunk.ChunkID) // basically all the chunks of the file come in this slice
+			the_fsm.chunkIDToDataNodesMap[chunk.ChunkID] = chunk.Locations // this add's data to the fsm's map
+			// so what is added is -> fileToChunksMap[chunkID 13434] = [DataNode3, Datanode5, DateNode6]
 		}
+		the_fsm.fileToChunksMap[cmd.Filename] = chunkIDSlice // here we add the file to chunk ID's mapping to the fsm
+		// like fileToChunksMap["hello.txt"] = [1312412,3463563463,3453453,23423423] -> id's of the different chunks
 	}
+	return nil // returning true if the function runs successfully
 }
+
+
