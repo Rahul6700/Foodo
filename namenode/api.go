@@ -29,7 +29,7 @@ func (server *ApiServer) RegisterRoutes(r *gin.Engine) {
 
 // this endpoint is used by the LB to find whether the namenode is the leader or no, return true or false accordingly
 func (s* ApiServer) handleStatus (c* gin.Context) {
-	if server.raft.State() != raft.Leader {
+	if s.raft.State() != raft.Leader {
 		c.JSON(503, gin.H{"status" : "false"})
 	}
 	c.JSON(200, gin.H{"status" : "true"})
@@ -48,7 +48,7 @@ func (s *ApiServer) handlePropose(c *gin.Context) {
 	// read the raw JSON (the RaftCommand) from the LB's request, basically the content of the POST req that the LB sends
 	cmdBytes, err := c.GetRawData()
 	if err != nil {
-		c.JSON(400, gin.H{"error": "bad request body"})r
+		c.JSON(400, gin.H{"error": "bad request body"})
 		return
 	}
 

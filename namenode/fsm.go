@@ -21,7 +21,7 @@ type fms_snapshot struct {
 // even tho a new fsm is created, we dont lose our data on every restart, cuz the raft library handles the syncronisation and populates the map again
 func NewFsm() *FSM {
 	return &FSM {
-			fileToChunksMap: make(map[string][string]),
+			fileToChunksMap: make(map[string][]string),
 			chunkIDToDataNodesMap: make(map[string][]string)
 	}
 }
@@ -29,13 +29,14 @@ func NewFsm() *FSM {
 // to implement : apply, snapshot and restore
 
 // Apply function, 
-func (the_fsm *FSM) Apply (log *raft.log) interface{} {
+func (the_fsm *FSM) Apply (log *raft.Log) interface{} {
 	the_fsm.lock.Lock()
 	defer the_fsm.lock.Unlock()
 
 	var cmd shared.RaftCommand
 	if err := json.Unmarshal(log.Data, &cmd); err != nil {
-		return log.Printf("could not unmarshal command: %s\n", err)
+		log.Printf("could not unmarshal command: %s\n", err)
+		return err
 	}
 
 	if(cmd.Operation != "REGISTER_FILE") return log.Printf("unknown operation %s\n", cmd.Operation)
@@ -49,12 +50,12 @@ func (the_fsm *FSM) Apply (log *raft.log) interface{} {
 		the_fsm.fileToChunksMap[cmd.Filename] = chunkIDSlice // here we add the file to chunk ID's mapping to the fsm
 		// like fileToChunksMap["hello.txt"] = [1312412,3463563463,3453453,23423423] -> id's of the different chunks
 	}
-	return nil // returning true if the function runs successfully
+	return nil // returning nil if the function runs successfully
 }
 
 // the snapshot function takes a snapshot of both the slices and sends it to the FSM
 // this function return 2 things, a value and an error
-func (the_fsm *FSM) Snapshot (raft.FSMSnapshot, error) interface{} {
+func (the_fsm *FSM) Snapshot (raft.FSMSnapshot, error) {
 	the_fsm.lock.Lock()
 	defer the_fsm.lock.Unlock() // lock the fsm in the start of the function and unlock after the operation is complete, so only one process can acces
 	// it and hence avoiding race conditions
@@ -71,14 +72,14 @@ func (the_fsm *FSM) Snapshot (raft.FSMSnapshot, error) interface{} {
 		return nil, err // returning a value and an error
 	}
 	// on success
-	return &fsmSnapshot{data: data}, nil
+	return &fsm_snapshot{data: data}, nil
 }
 
 // this pulls the stored snapshots from the FSM
 // it returns a file, io.ReadCloser technically which is a in built method in "io"
 // in traditional io.Read() we can just read, in io.ReadCloser we need to close the fd (it's to save resources)
 // if we do io.ReadCloser we need to do defer rc.Close()
-func (the_fsm *FSM) restore (rc io.ReadCloser) error {
+func (the_fsm *FSM) Restore (rc io.ReadCloser) error {
 	defer rc.Close()
 	// a new obj of the fsm_snapshot struct to store the incoming data
 	var data fsm_snapshot;
@@ -86,7 +87,7 @@ func (the_fsm *FSM) restore (rc io.ReadCloser) error {
 	// creates a NewDecoder obj that reads the message from rc and Decodes it and stores it in the data var
 	err := json.NewDecoder(rc).Decode(&data)
 	if err != nil {
-		return nil
+		return err 
 	}
 
 	// now we need to write this data to the FSM

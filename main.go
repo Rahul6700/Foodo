@@ -6,9 +6,11 @@ import (
 	"log"
 	"net"
 	"os"
+	"time"
 	"foodo/namenode"
-	"github.com/gin-gonic/gin" 
-	"github.com/hashicorp/raft" 
+	"path/filepath"
+	"github.com/gin-gonic/gin"
+	"github.com/hashicorp/raft"
 	"github.com/hashicorp/raft-boltdb" 
 )
 
@@ -74,7 +76,7 @@ func main(){
 	// this function too is idempotent, it first checks snapshots and if something is found, restores
 	raftNode, err := raft.NewRaft (
 		config,
-		fms,
+		fsm,
 		logStore,
 		stableStore,
 		snapshotStore,
