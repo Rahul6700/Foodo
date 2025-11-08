@@ -1,7 +1,11 @@
 package namenode
 
 import (
-
+	"log"
+	"net/http"
+	"time"
+	"github.com/gin-gonic/gin"
+	"github.com/hashicorp/raft"
 )
 
 // struct that stores a referene to the Raft node - "raft"
@@ -65,7 +69,6 @@ func (s *ApiServer) handlePropose(c *gin.Context) {
 		return
 	}
 
-	// in case of success
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
