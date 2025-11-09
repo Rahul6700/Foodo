@@ -2,18 +2,29 @@ package namenode
 
 import (
 	"encoding/json"
-	"bytes"
 	"io"
-	"foodo/shared"
-	"food/model"
 	"log"
+	"github.com/Rahul6700/Foodo/shared"
+	"github.com/hashicorp/raft"
+	"fmt"
+	"sync"
 )
 
 // temp struct used only for this file -> restore and snapshot func
-type fms_snapshot struct {
+type fsm_snapshot struct {
 		Files  map[string][]string
 		Chunks map[string][]string
 	}
+
+type FSM struct {
+	lock                sync.Mutex // Your lock
+	fileToChunksMap     map[string][]string
+	chunkIDToDataNodesMap map[string][]string
+}
+
+type fsmSnapshot struct {
+	data []byte
+}
 
 // we return a pointer to the FSM, so that whereever its modified from, we always acess the same FMS
 // if we pass the FSM directly, copies might get created
@@ -22,31 +33,33 @@ type fms_snapshot struct {
 func NewFsm() *FSM {
 	return &FSM {
 			fileToChunksMap: make(map[string][]string),
-			chunkIDToDataNodesMap: make(map[string][]string)
+			chunkIDToDataNodesMap: make(map[string][]string),
 	}
 }
 
 // to implement : apply, snapshot and restore
 
 // Apply function, 
-func (the_fsm *FSM) Apply (log *raft.Log) interface{} {
+func (the_fsm *FSM) Apply (raftLog *raft.Log) interface{} {
 	the_fsm.lock.Lock()
 	defer the_fsm.lock.Unlock()
 
-	var cmd shared.RaftCommand
-	if err := json.Unmarshal(log.Data, &cmd); err != nil {
-		log.Printf("could not unmarshal command: %s\n", err)
-		return err
+	var cmd shared.RaftCommand // it has cmd.Filename
+	log.Printf("0. apply func is applying to cmd.Filename as %s\n", cmd.Filename)
+	if err := json.Unmarshal(raftLog.Data, &cmd); err != nil {
+		return fmt.Errorf("could not unmarshal command: %s", err)
 	}
-
-	if(cmd.Operation != "REGISTER_FILE") return log.Printf("unknown operation %s\n", cmd.Operation)
-	else {
+	log.Printf("1. apply func is applying to cmd.Filename as %s\n", cmd.Filename)
+	if cmd.Operation != "REGISTER_FILE"{
+		return fmt.Errorf("unknown operation %s", cmd.Operation)
+	} else {
 		var chunkIDSlice []string
 		for _, chunk := range cmd.Chunks {
 			chunkIDSlice = append(chunkIDSlice, chunk.ChunkID) // basically all the chunks of the file come in this slice
 			the_fsm.chunkIDToDataNodesMap[chunk.ChunkID] = chunk.Locations // this add's data to the fsm's map
 			// so what is added is -> fileToChunksMap[chunkID 13434] = [DataNode3, Datanode5, DateNode6]
 		}
+		log.Printf("2. apply func is applying to cmd.Filename as %s\n", cmd.Filename)
 		the_fsm.fileToChunksMap[cmd.Filename] = chunkIDSlice // here we add the file to chunk ID's mapping to the fsm
 		// like fileToChunksMap["hello.txt"] = [1312412,3463563463,3453453,23423423] -> id's of the different chunks
 	}
@@ -55,25 +68,35 @@ func (the_fsm *FSM) Apply (log *raft.Log) interface{} {
 
 // the snapshot function takes a snapshot of both the slices and sends it to the FSM
 // this function return 2 things, a value and an error
-func (the_fsm *FSM) Snapshot (raft.FSMSnapshot, error) {
+func (the_fsm *FSM) Snapshot() (raft.FSMSnapshot, error) {
 	the_fsm.lock.Lock()
-	defer the_fsm.lock.Unlock() // lock the fsm in the start of the function and unlock after the operation is complete, so only one process can acces
-	// it and hence avoiding race conditions
+	defer the_fsm.lock.Unlock() 
 
-	// we create a snapshot of that struct we just created,
-	// so we basically put both the maps (file to chunks and chunksID to DN) in the struct and send a snapshot of it to the FSM
-	snapshot := fms_snapshot {
-		Files : the_fsm.fileToChunksMap,
-		Chunks : the_fsm.chunkIDToDataNodesMap
+	// 1. Create your "data" struct
+	snapshot := fsm_snapshot{
+		Files:  the_fsm.fileToChunksMap,
+		Chunks: the_fsm.chunkIDToDataNodesMap,
 	}
-	// obv, we cant send a go struct, so we convert the snapshot to a binary slice
+
+	// 2. Convert it to bytes
 	data, err := json.Marshal(snapshot)
 	if err != nil {
-		return nil, err // returning a value and an error
+		return nil, err
 	}
-	// on success
-	return &fsm_snapshot{data: data}, nil
+
+	// 3. Return the NEW helper struct, passing the bytes into it
+	return &fsmSnapshot{data: data}, nil
 }
+
+// --- This code now correctly matches the 'fsmSnapshot' struct ---
+func (s *fsmSnapshot) Persist(sink raft.SnapshotSink) error {
+	if _, err := sink.Write(s.data); err != nil { 
+		return err
+	}
+	return sink.Close()
+}
+
+func (s *fsmSnapshot) Release() {}
 
 // this pulls the stored snapshots from the FSM
 // it returns a file, io.ReadCloser technically which is a in built method in "io"
@@ -87,7 +110,7 @@ func (the_fsm *FSM) Restore (rc io.ReadCloser) error {
 	// creates a NewDecoder obj that reads the message from rc and Decodes it and stores it in the data var
 	err := json.NewDecoder(rc).Decode(&data)
 	if err != nil {
-		return err 
+		return err
 	}
 
 	// now we need to write this data to the FSM
@@ -99,4 +122,39 @@ func (the_fsm *FSM) Restore (rc io.ReadCloser) error {
 	the_fsm.chunkIDToDataNodesMap = data.Chunks
 
 	return nil
+}
+
+// this is a thread-safe "read-only" function.
+// It locks the maps, finds the file's chunks, and builds a plan.
+func (f *FSM) GetFileMetadata(fileName string) ([]shared.ChunkStruct, error) {
+	f.lock.Lock()
+	defer f.lock.Unlock()
+
+	// Find the file's chunk IDs
+	log.Printf("file name is: %s", fileName)
+
+	log.Printf("Current file map: %v", f.fileToChunksMap)
+
+	chunkIDs, ok := f.fileToChunksMap [fileName]
+	if !ok {
+		return nil, fmt.Errorf("file %s not found", fileName)
+	}
+
+	// build the "plan" by looking up each chunk's location
+	var plan []shared.ChunkStruct
+	for i, chunkID := range chunkIDs {
+		locations, ok := f.chunkIDToDataNodesMap[chunkID]
+		if !ok {
+			// this means our metadata is corrupt.
+			return nil, fmt.Errorf("chunk %s (part of %s) has no location data", chunkID, fileName)
+		}
+		
+		plan = append(plan, shared.ChunkStruct{
+			ChunkID:    chunkID,
+			ChunkIndex: i,
+			Locations:  locations,
+		})
+	}
+	
+	return plan, nil
 }

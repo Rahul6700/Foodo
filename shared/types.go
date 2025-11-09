@@ -6,16 +6,16 @@ package shared
 
 // this is the truct for the RaftCommmand
 type RaftCommand struct {
-	Operation string
-	Filename string
-	Chunks []ChunkStruct
+	Operation string `json:"operation"`
+	Filename string `json:"file_name"`
+	Chunks []ChunkStruct `json:"chunks"`
 }
 
 // this is the helper struct
 type ChunkStruct struct {
-	ChunkID string
-	ChunkIndex int
-	Locations []string
+	ChunkID string `json:"chunk_id"`
+	ChunkIndex int `json:"chunk_index"`
+	Locations []string `json:"locations"`
 }
 
 // HeartbeatPayload is used by the DN's to send heartbeat's to the LB

@@ -11,12 +11,16 @@ import (
 // struct that stores a referene to the Raft node - "raft"
 type ApiServer struct {
 	raft *raft.Raft
+	fsm *FSM
 }
 
 // this method creates a new namenode server
 // we pass in our main raftNode object
-func NewApiServer(r *raft.Raft) *ApiServer {
-	return &ApiServer{raft: r}
+func NewApiServer(r *raft.Raft, fsm *FSM) *ApiServer {
+	return &ApiServer{
+		raft: r,
+		fsm: fsm,
+	}
 }
 
 // This is where the RAFT server interacts with GIN to expose endpoints
@@ -25,12 +29,14 @@ func NewApiServer(r *raft.Raft) *ApiServer {
 func (server *ApiServer) RegisterRoutes(r *gin.Engine) {
 	r.GET("/status", server.handleStatus)
 	r.POST("/raft/propose", server.handlePropose)
+	r.GET("/get-metadata", server.handleGetMetadata)
 }
 
 // this endpoint is used by the LB to find whether the namenode is the leader or no, return true or false accordingly
 func (s* ApiServer) handleStatus (c* gin.Context) {
 	if s.raft.State() != raft.Leader {
 		c.JSON(503, gin.H{"status" : "false"})
+		return
 	}
 	c.JSON(200, gin.H{"status" : "true"})
 }
@@ -72,4 +78,36 @@ func (s *ApiServer) handlePropose(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"success": true})
 }
 
+func (s *ApiServer) handleGetMetadata(c *gin.Context) {
+	// Only the leader should answer read requests
+	// to prevent serving "stale" (old) data.
+	if s.raft.State() != raft.Leader {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "not the leader"})
+		return
+	}
 
+	// 1. Get the filename from the query: /get-metadata?filename=foo.txt
+	fileName := c.Query("filename")
+	if fileName == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing 'filename' query parameter"})
+		return
+	}
+
+	// 2. Call your new thread-safe "getter" on the FSM
+	//    (You must pass 'fsm' to your ApiServer, or make this
+	//     call in a way that can access the fsm)
+    //
+    //    !! A common pattern is to pass the FSM into NewApiServer:
+    //    type ApiServer struct {
+    //        raft *raft.Raft
+    //        fsm  *Fsm  // <-- ADD THIS
+    //    }
+	plan, err := s.fsm.GetFileMetadata(fileName) // <-- ASSUMES 'fsm' IS AVAILABLE
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 3. Send the plan back to the Load Balancer
+	c.JSON(http.StatusOK, gin.H{"chunks": plan})
+}

@@ -7,7 +7,7 @@ import (
 	"net"
 	"os"
 	"time"
-	"foodo/namenode"
+	"github.com/Rahul6700/Foodo/namenode"
 	"path/filepath"
 	"github.com/gin-gonic/gin"
 	"github.com/hashicorp/raft"

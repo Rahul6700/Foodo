@@ -1,5 +1,9 @@
 package models
 
+import (
+	"sync"
+)
+
 // NameNode Structs -------------
 
 // strcut to store metadata for every chunk
