@@ -16,4 +16,10 @@ type ChunkStruct struct {
 	ChunkID string
 	ChunkIndex int
 	Locations []string
-} 
+}
+
+// HeartbeatPayload is used by the DN's to send heartbeat's to the LB
+type HeartbeatPayload struct {
+	NodeID       string `json:"node_id"`       // DN's full url -> "http://192.168.1.15:9001"
+	ActiveWrites int    `json:"active_writes"` // load tracked by the atomic counter
+}
