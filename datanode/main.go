@@ -1,35 +1,44 @@
-package datanode
+package main
 
 import (
-	"github.com/gin-gonic/gin"
+	"flag"
 	"log"
-	"models/models"
+	"os"
+	"foodo/datanode" 
+	"github.com/gin-gonic/gin"
 )
 
-type CompleteChunkData struct {
-	chunkID string
-	Filename string
-	Index int
-	Size int
-	Data []byte // the actual content
-}
+var (
+	// the public facing port
+	apiAddr = flag.String("api-addr", ":9001", "API address (e.g., :9001)")
+	//the folder to store chunks
+	dataDir = flag.String("data-dir", "dn-data-1", "Data directory for chunks")
+	//The addr (url) of the loadb
+	lbAddr = flag.String("lb-addr", "", "Load Balancer address, sumn like -> http://192.168.1.10:8000)")
+)
 
-func main(){
+func main() {
+	flag.Parse()
+	if *lbAddr == "" {
+		log.Fatal("Load Balancer address is required")
+	}
+	// idempotent dir creation to store chunks
+	os.MkdirAll(*dataDir, 0700)
+
+	// we start the hearBeat sending process in the BG using a goroutine
+	// we give it the LB addr so it can send there and the public port on which it can recieve responeses
+	go datanode.StartHeartbeat(*lbAddr, *apiAddr)
+
+	api := datanode.NewApiServer(*dataDir)
+	
 	r := gin.Default()
+	// Pass the dataDir to the route handlers so they know where to save files
+	r.POST("writeChunk/:chunkID", api.handleWriteChunk)
+	r.GET("readChunk/:chunkID", api.handleReadChunk)
 
-	r.POST("/store", func(c* gin.Context){
-		var tempStruct models.fileChunk
-		err := c.BindJSON(&tempStruct)
-		log.Printf("datanode recieved: %s -> %s", tempStruct.MetaData.chunkID, tempStruct.chunkData)
-		key := tempStruct.chunkID // key is a string -> chunkID
-		var value models.CompleteChunkData // value is a CompleteChunkData which is basically MetaData with the bin content
-		value.chunkID = tempStruct.chunkID
-		value.Filename = tempStruct.Filename
-		value.Index = tempStruct.Index
-		value.Size = tempStruct.Size
-		value.Data = tempStruct.Data
-		store(key,value) // calls the store function in map.go -> stores to the hashmap
-	})
-
-	r.POST()
+	log.Printf("Datanode API server starting on %s\n", *apiAddr)
+	// We listen on 0.0.0.0 to be reachable from other machines
+	if err := router.Run("0.0.0.0" + *apiAddr); err != nil {
+		log.Fatalf("Datanode API server failed: %s", err)
+	}
 }
