@@ -7,7 +7,7 @@ package shared
 // this is the truct for the RaftCommmand
 type RaftCommand struct {
 	Operation string `json:"operation"`
-	Filename string `json:"file_name"`
+	Filename string `json:"filename"`
 	Chunks []ChunkStruct `json:"chunks"`
 }
 

@@ -21,7 +21,7 @@ const lbAddress = "http://localhost:8000"
 
 // --- STRUCTS (For Uploading) ---
 type ClientChunk struct {
-	ChunkID string `json:"chunkID"`
+	ChunkID string `json:"chunk_id"`
 	Index   int    `json:"index"`
 }
 type ClientUploadRequest struct {

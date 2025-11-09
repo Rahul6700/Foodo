@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"io"
 	"log"
-	"github.com/Rahul6700/Foodo/shared"
+	//"github.com/Rahul6700/Foodo/shared"
 	"github.com/hashicorp/raft"
 	"fmt"
 	"sync"
@@ -15,6 +15,23 @@ type fsm_snapshot struct {
 		Files  map[string][]string
 		Chunks map[string][]string
 	}
+
+type RaftCommand struct {
+	Operation string        `json:"operation"`
+	Filename  string        `json:"filename"`  
+	Chunks    []ChunkStruct `json:"chunks"`
+}
+
+type ChunkStruct struct {
+	ChunkID    string   `json:"chunk_id"`
+	ChunkIndex int      `json:"chunk_index"`
+	Locations  []string `json:"locations"`
+}
+
+type HeartbeatPayload struct {
+	NodeID       string `json:"node_id"`
+	ActiveWrites int    `json:"active_writes"`
+}
 
 type FSM struct {
 	lock                sync.Mutex // Your lock
@@ -44,7 +61,9 @@ func (the_fsm *FSM) Apply (raftLog *raft.Log) interface{} {
 	the_fsm.lock.Lock()
 	defer the_fsm.lock.Unlock()
 
-	var cmd shared.RaftCommand // it has cmd.Filename
+	 log.Printf("Raw raft log data: %s\n", string(raftLog.Data))
+
+	var cmd RaftCommand // it has cmd.Filename
 	log.Printf("0. apply func is applying to cmd.Filename as %s\n", cmd.Filename)
 	if err := json.Unmarshal(raftLog.Data, &cmd); err != nil {
 		return fmt.Errorf("could not unmarshal command: %s", err)
@@ -126,7 +145,7 @@ func (the_fsm *FSM) Restore (rc io.ReadCloser) error {
 
 // this is a thread-safe "read-only" function.
 // It locks the maps, finds the file's chunks, and builds a plan.
-func (f *FSM) GetFileMetadata(fileName string) ([]shared.ChunkStruct, error) {
+func (f *FSM) GetFileMetadata(fileName string) ([]ChunkStruct, error) {
 	f.lock.Lock()
 	defer f.lock.Unlock()
 
@@ -141,7 +160,7 @@ func (f *FSM) GetFileMetadata(fileName string) ([]shared.ChunkStruct, error) {
 	}
 
 	// build the "plan" by looking up each chunk's location
-	var plan []shared.ChunkStruct
+	var plan []ChunkStruct
 	for i, chunkID := range chunkIDs {
 		locations, ok := f.chunkIDToDataNodesMap[chunkID]
 		if !ok {
@@ -149,7 +168,7 @@ func (f *FSM) GetFileMetadata(fileName string) ([]shared.ChunkStruct, error) {
 			return nil, fmt.Errorf("chunk %s (part of %s) has no location data", chunkID, fileName)
 		}
 		
-		plan = append(plan, shared.ChunkStruct{
+		plan = append(plan, ChunkStruct{
 			ChunkID:    chunkID,
 			ChunkIndex: i,
 			Locations:  locations,
